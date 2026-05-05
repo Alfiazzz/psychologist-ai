@@ -80,7 +80,7 @@ async def session(websocket: WebSocket):
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": "meta-llama/llama-3.3-70b-instruct:free",
+                        "model": "mistralai/mistral-7b-instruct:free",
                         "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
                         "max_tokens": 300,
                         "stream": True
