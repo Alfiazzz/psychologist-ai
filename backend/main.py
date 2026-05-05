@@ -1,14 +1,15 @@
+import logging
+import os
+import json
+import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from crisis_guard import check_crisis
-import os, json, httpx
 
 load_dotenv()
-
-import logging
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -49,8 +50,8 @@ async def save_history(session_id: str, history: list):
 @app.websocket("/ws/session")
 async def session(websocket: WebSocket):
     await websocket.accept()
-    logger.info(f"WebSocket connected: {session_id}")
     session_id = websocket.query_params.get("session_id", "default")
+    logger.info(f"WebSocket connected: {session_id}")
 
     try:
         while True:
@@ -98,12 +99,13 @@ async def session(websocket: WebSocket):
                         except Exception:
                             pass
 
+            logger.info(f"Reply: {full_reply}")
             await websocket.send_text(json.dumps({"type": "done"}))
             history.append({"role": "assistant", "content": full_reply})
             await save_history(session_id, history)
 
     except WebSocketDisconnect:
-        pass
+        logger.info(f"WebSocket disconnected: {session_id}")
 
 @app.get("/health")
 @app.head("/health")
