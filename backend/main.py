@@ -6,6 +6,10 @@ import os, json, httpx
 
 load_dotenv()
 
+import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -45,6 +49,7 @@ async def save_history(session_id: str, history: list):
 @app.websocket("/ws/session")
 async def session(websocket: WebSocket):
     await websocket.accept()
+    logger.info(f"WebSocket connected: {session_id}")
     session_id = websocket.query_params.get("session_id", "default")
 
     try:
@@ -52,6 +57,7 @@ async def session(websocket: WebSocket):
             data = await websocket.receive_text()
             message = json.loads(data)
             user_text = message.get("text", "")
+            logger.info(f"Received message: {user_text}")
 
             if check_crisis(user_text):
                 await websocket.send_text(json.dumps({
@@ -100,5 +106,6 @@ async def session(websocket: WebSocket):
         pass
 
 @app.get("/health")
+@app.head("/health")
 def health():
     return {"status": "ok"}
