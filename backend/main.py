@@ -27,8 +27,11 @@ async def get_history(session_id: str) -> list:
             headers={"Authorization": f"Bearer {REDIS_TOKEN}"}
         )
         data = r.json()
-        if data.get("result"):
-            return json.loads(data["result"])
+        result = data.get("result")
+        if result:
+            parsed = json.loads(result)
+            if isinstance(parsed, list):
+                return parsed
         return []
 
 async def save_history(session_id: str, history: list):
