@@ -80,7 +80,7 @@ async def session(websocket: WebSocket):
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": "google/gemma-3-27b-it:free",
+                        "model": "google/gemma-4-31b-it:free",
                         "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
                         "max_tokens": 300,
                         "stream": True
