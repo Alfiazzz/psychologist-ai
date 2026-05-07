@@ -60,12 +60,12 @@ async def session(websocket: WebSocket):
             data = await websocket.receive_text()
             message = json.loads(data)
             user_text = message.get("text", "")
-            logger.info(f"Received message: {user_text}")
+            logger.info(f"Received: {user_text}")
 
             if check_crisis(user_text):
                 await websocket.send_text(json.dumps({
                     "type": "crisis",
-                    "text": "Я слышу, что тебе сейчас очень тяжело. Пожалуйста, обратись на телефон доверия: 8-800-2000-122 (бесплатно, круглосуточно). Там тебя выслушают живые специалисты."
+                    "text": "Я слышу, что тебе сейчас очень тяжело. Пожалуйста, обратись на телефон доверия: 8-800-2000-122 (бесплатно, круглосуточно)."
                 }))
                 continue
 
@@ -74,81 +74,96 @@ async def session(websocket: WebSocket):
             if len(history) > 20:
                 history = history[-20:]
 
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                       "model": "google/gemma-4-31b-it:free",
-                        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
-                        "max_tokens": 300,
-                        "stream": True
-                    }
-                )
+            try:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    response = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://psychologist-ai.onrender.com",
+                            "X-Title": "Psychologist AI"
+                        },
+                        json={
+                            "model": "google/gemma-4-31b-it:free",
+                            "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
+                            "max_tokens": 300,
+                            "stream": True
+                        }
+                    )
+                    logger.info(f"OpenRouter status: {response.status_code}")
 
-                full_reply = ""
-                async for line in response.aiter_lines():
-                    if line.startswith("data: ") and line != "data: [DONE]":
-                        try:
-                            chunk = json.loads(line[6:])
-                            token = chunk["choices"][0]["delta"].get("content", "")
-                            if token:
-                                full_reply += token
-                                await websocket.send_text(json.dumps({"type": "token", "text": token}))
-                        except Exception:
-                            pass
+                    full_reply = ""
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: ") and line != "data: [DONE]":
+                            try:
+                                chunk = json.loads(line[6:])
+                                token = chunk["choices"][0]["delta"].get("content", "")
+                                if token:
+                                    full_reply += token
+                                    await websocket.send_text(json.dumps({"type": "token", "text": token}))
+                            except Exception:
+                                pass
 
-            logger.info(f"Reply: {full_reply}")
-            await websocket.send_text(json.dumps({"type": "done"}))
-            history.append({"role": "assistant", "content": full_reply})
-            await save_history(session_id, history)
+                    logger.info(f"Reply: {full_reply}")
+                    await websocket.send_text(json.dumps({"type": "done"}))
+                    history.append({"role": "assistant", "content": full_reply})
+                    await save_history(session_id, history)
+
+            except Exception as e:
+                logger.error(f"Error: {e}")
+                await websocket.send_text(json.dumps({
+                    "type": "token",
+                    "text": "Извини, произошла ошибка. Попробуй написать ещё раз."
+                }))
+                await websocket.send_text(json.dumps({"type": "done"}))
 
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected: {session_id}")
+        logger.info(f"Disconnected: {session_id}")
+
 @app.post("/api/did/stream/create")
-            async def create_did_stream():
-                async with httpx.AsyncClient(timeout=30) as client:
-                    response = await client.post(
-                        f"{DID_API_URL}/talks/streams",
-                        headers={
-                            "Authorization": f"Basic {DID_API_KEY}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "source_url": "https://create-images-results.d-id.com/DefaultPresenters/Noelle_f/image.jpeg"
-                        }
-                    )
-                    return response.json()
-                    @app.post("/api/did/stream/speak")
-            async def speak_did_stream(request: Request):
-      request = await request.json()
-                stream_id = request.get("stream_id")
-                session_id = request.get("session_id")
-                text = request.get("text")
-                async with httpx.AsyncClient(timeout=30) as client:
-                    response = await client.post(
-                        f"{DID_API_URL}/talks/streams/{stream_id}",
-                        headers={
-                            "Authorization": f"Basic {DID_API_KEY}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "session_id": session_id,
-                            "script": {
-                                "type": "text",
-                                "input": text,
-                                "provider": {
-                                    "type": "microsoft",
-                                    "voice_id": "ru-RU-SvetlanaNeural"
-                                }
-                            },
-                            "config": {"stitch": True}
-                        }
-                    )
-                    return response.json()
+async def create_did_stream():
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            f"{DID_API_URL}/talks/streams",
+            headers={
+                "Authorization": f"Basic {DID_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "source_url": "https://create-images-results.d-id.com/DefaultPresenters/Noelle_f/image.jpeg"
+            }
+        )
+        return response.json()
+
+@app.post("/api/did/stream/speak")
+async def speak_did_stream(request: Request):
+    data = await request.json()
+    stream_id = data.get("stream_id")
+    session_id = data.get("session_id")
+    text = data.get("text")
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            f"{DID_API_URL}/talks/streams/{stream_id}",
+            headers={
+                "Authorization": f"Basic {DID_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "session_id": session_id,
+                "script": {
+                    "type": "text",
+                    "input": text,
+                    "provider": {
+                        "type": "microsoft",
+                        "voice_id": "ru-RU-SvetlanaNeural"
+                    }
+                },
+                "config": {"stitch": True}
+            }
+        )
+        return response.json()
+
 @app.get("/health")
 @app.head("/health")
 def health():
