@@ -2,7 +2,7 @@ import logging
 import os
 import json
 import httpx
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from crisis_guard import check_crisis
@@ -17,6 +17,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL")
 REDIS_TOKEN = os.getenv("REDIS_TOKEN")
+DID_API_KEY = os.getenv("DID_API_KEY")
+DID_API_URL = "https://api.d-id.com"
 
 SYSTEM_PROMPT = """Ты — Анна, виртуальный психолог-консультант. Работаешь в рамках клиент-центрированной терапии Карла Роджерса.
 Ты эмпатичная, уважительная, внимательная. Говоришь просто, живо и по-человечески.
@@ -106,7 +108,47 @@ async def session(websocket: WebSocket):
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: {session_id}")
-
+@app.post("/api/did/stream/create")
+            async def create_did_stream():
+                async with httpx.AsyncClient(timeout=30) as client:
+                    response = await client.post(
+                        f"{DID_API_URL}/talks/streams",
+                        headers={
+                            "Authorization": f"Basic {DID_API_KEY}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "source_url": "https://create-images-results.d-id.com/DefaultPresenters/Noelle_f/image.jpeg"
+                        }
+                    )
+                    return response.json()
+                    @app.post("/api/did/stream/speak")
+            async def speak_did_stream(request: Request):
+      request = await request.json()
+                stream_id = request.get("stream_id")
+                session_id = request.get("session_id")
+                text = request.get("text")
+                async with httpx.AsyncClient(timeout=30) as client:
+                    response = await client.post(
+                        f"{DID_API_URL}/talks/streams/{stream_id}",
+                        headers={
+                            "Authorization": f"Basic {DID_API_KEY}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "session_id": session_id,
+                            "script": {
+                                "type": "text",
+                                "input": text,
+                                "provider": {
+                                    "type": "microsoft",
+                                    "voice_id": "ru-RU-SvetlanaNeural"
+                                }
+                            },
+                            "config": {"stitch": True}
+                        }
+                    )
+                    return response.json()
 @app.get("/health")
 @app.head("/health")
 def health():
