@@ -92,7 +92,6 @@ async def session(websocket: WebSocket):
     "google/gemma-4-26b-a4b-it:free",
     "liquid/lfm-2.5-1.2b-instruct:free"
 ],
-"route": "fallback",
                         "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
                         "max_tokens": 300,
                         "stream": True
