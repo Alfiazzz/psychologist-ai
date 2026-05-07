@@ -1,0 +1,12 @@
+[33m464a0e0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix model request
+[33m52cda16[m add more models
+[33m6216014[m add model fallback
+[33mdc652c9[m fix model name
+[33mef0789c[m fix model name
+[33m8d3f865[m change model to gemma
+[33mf9e04d1[m change model
+[33m9b61ce8[m fix indentation
+[33m0ab691d[m fix health and add logging
+[33m93b6d1c[m fix history bug
+[33mfb6d9ce[m add backend
+[33m605a48f[m Initial commit
