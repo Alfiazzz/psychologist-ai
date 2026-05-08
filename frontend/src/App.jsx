@@ -48,8 +48,9 @@ export default function App() {
       const pc = new RTCPeerConnection({ iceServers: data.ice_servers });
       pc.ontrack = (e) => {
         console.log("Got track:", e.streams);
-        if (videoRef.current && e.streams[0]) {
-          videoRef.current.srcObject = e.streams[0];
+        if (videoRef.current) {
+          videoRef.current.srcObject = e.streams[0] || e.streams[0];
+          videoRef.current.play().catch(console.error);
           setAvatarReady(true);
         }
       };
@@ -108,7 +109,7 @@ export default function App() {
               <div style={{ color: "#7a9e87", fontSize: "0.75rem" }}>Загружаем Анну...</div>
             </div>
           )}
-          <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: avatarReady ? "block" : "none" }} />
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </div>
         <div style={{ color: "white", fontSize: "1.2rem", fontWeight: 500 }}>Анна</div>
         <div style={{ color: "#7a9e87", fontSize: "0.75rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>Психолог-консультант</div>
