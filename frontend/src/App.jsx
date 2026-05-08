@@ -10,13 +10,14 @@ export default function App() {
           Консультация носит поддерживающий характер<br/>и не заменяет медицинскую помощь
         </div>
       </div>
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         <iframe
           src="https://studio.d-id.com/agents/share?id=v2_agt_bxMuRmCo&utm_source=copy&key=Y2tfdGpGSEZUdzh1b2Nxa0JVMVBMY0Fl"
           allow="microphone; camera"
-          style={{ width: "100%", height: "100%", border: "none" }}
+          style={{ width: "100%", height: "calc(100% + 60px)", border: "none", marginBottom: "-60px" }}
           title="Анна — психолог"
         />
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "#2d3a35", zIndex: 10 }} />
       </div>
     </div>
   );
