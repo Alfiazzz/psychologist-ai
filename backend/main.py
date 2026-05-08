@@ -131,7 +131,7 @@ async def create_did_stream():
                 "Content-Type": "application/json"
             },
             json={
-                "source_url": "https://create-images-results.d-id.com/DefaultPresenters/Noelle_f/image.jpeg"
+                "source_url": "https://i.postimg.cc/G90Qk1mG/s2d-CF599Iwg.jpg"
             }
         )
         return response.json()

@@ -35,13 +35,19 @@ export default function App() {
 
   async function initDID() {
     try {
+      console.log("Initializing D-ID...");
       const res = await fetch(`${BACKEND_URL}/api/did/stream/create`, { method: "POST" });
       const data = await res.json();
-      if (!data.id) return;
+      console.log("D-ID response:", data);
+      if (!data.id) {
+        console.error("No stream ID from D-ID:", data);
+        return;
+      }
       setDidStream(data);
 
       const pc = new RTCPeerConnection({ iceServers: data.ice_servers });
       pc.ontrack = (e) => {
+        console.log("Got track:", e.streams);
         if (videoRef.current && e.streams[0]) {
           videoRef.current.srcObject = e.streams[0];
           setAvatarReady(true);
@@ -52,11 +58,13 @@ export default function App() {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      await fetch(`${BACKEND_URL}/api/did/stream/answer`, {
+      const answerRes = await fetch(`${BACKEND_URL}/api/did/stream/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stream_id: data.id, session_id: data.session_id, answer })
       });
+      const answerData = await answerRes.json();
+      console.log("Answer response:", answerData);
 
       setPeerConnection(pc);
     } catch (e) {
