@@ -168,3 +168,19 @@ async def speak_did_stream(request: Request):
 @app.head("/health")
 def health():
     return {"status": "ok"}
+@app.post("/api/did/stream/answer")
+async def did_stream_answer(request: Request):
+    data = await request.json()
+    stream_id = data.get("stream_id")
+    session_id = data.get("session_id")
+    answer = data.get("answer")
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            f"{DID_API_URL}/talks/streams/{stream_id}/sdp",
+            headers={
+                "Authorization": f"Basic {DID_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={"session_id": session_id, "answer": answer}
+        )
+        return response.json()
