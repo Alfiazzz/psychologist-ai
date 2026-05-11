@@ -184,3 +184,24 @@ async def did_stream_answer(request: Request):
             json={"session_id": session_id, "answer": answer}
         )
         return response.json()
+
+@app.post("/api/simli/session")
+async def create_simli_session(request: Request):
+    data = await request.json()
+    text = data.get("text", "")
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            "https://api.simli.ai/textToVideoStream",
+            headers={
+                "x-simli-key": os.getenv("SIMLI_API_KEY"),
+                "Content-Type": "application/json"
+            },
+            json={
+                "faceId": "afdb6a3e-3939-40aa-92df-01604c23101c",
+                "ttsAPIKey": os.getenv("OPENROUTER_API_KEY"),
+                "userText": text,
+                "voiceId": "ru-RU-SvetlanaNeural",
+                "quality": "high"
+            }
+        )
+        return response.json()
