@@ -2,23 +2,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { SimliClient, generateSimliSessionToken } from "simli-client";
 
 const SIMLI_API_KEY = import.meta.env.VITE_SIMLI_API_KEY;
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const FACE_ID = "afdb6a3e-3939-40aa-92df-01604c23101c";
 
 async function textToAudio(text) {
-  const res = await fetch("https://api.openai.com/v1/audio/speech", {
+  const res = await fetch(`${BACKEND_URL}/api/tts`, {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "tts-1",
-      input: text,
-      voice: "nova",
-      response_format: "pcm",
-      speed: 0.9
-    })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
   });
   if (!res.ok) throw new Error(`TTS error: ${res.status}`);
   const buffer = await res.arrayBuffer();
@@ -28,31 +19,44 @@ async function textToAudio(text) {
 export function useSimliAvatar({ onSpeakingChange } = {}) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
-  const simliRef = useRef(null);
+  const clientRef = useRef(null);
   const silenceRef = useRef(null);
   const [status, setStatus] = useState("idle");
 
-  const startSilence = useCallback(() => {
-    clearInterval(silenceRef.current);
-    silenceRef.current = setInterval(() => {
-      simliRef.current?.sendAudioData(new Uint8Array(3200).fill(0));
-    }, 100);
-  }, []);
+  const stopSilence = () => {
+    if (silenceRef.current) {
+      clearInterval(silenceRef.current);
+      silenceRef.current = null;
+    }
+  };
 
-  const stopSilence = useCallback(() => {
-    clearInterval(silenceRef.current);
-  }, []);
+  const startSilence = () => {
+    stopSilence();
+    silenceRef.current = setInterval(() => {
+      if (clientRef.current) {
+        try {
+          clientRef.current.sendAudioData(new Uint8Array(3200).fill(0));
+        } catch(e) {
+          stopSilence();
+        }
+      }
+    }, 200);
+  };
 
   const speak = useCallback(async (text) => {
-    if (!simliRef.current) return;
+    if (!clientRef.current) return;
     try {
       stopSilence();
       onSpeakingChange?.(true);
       setStatus("speaking");
+      console.log("Fetching TTS for:", text.substring(0, 30));
       const audioData = await textToAudio(text);
+      console.log("TTS received:", audioData.length, "bytes");
       const chunkSize = 3200;
       for (let i = 0; i < audioData.length; i += chunkSize) {
-        simliRef.current.sendAudioData(audioData.slice(i, i + chunkSize));
+        try {
+          clientRef.current?.sendAudioData(audioData.slice(i, i + chunkSize));
+        } catch(e) { break; }
         await new Promise(r => setTimeout(r, 10));
       }
       const durationMs = (audioData.length / 32000) * 1000;
@@ -60,18 +64,19 @@ export function useSimliAvatar({ onSpeakingChange } = {}) {
         startSilence();
         onSpeakingChange?.(false);
         setStatus("ready");
-      }, durationMs + 300);
-    } catch (e) {
+      }, durationMs + 500);
+    } catch(e) {
       console.error("TTS error:", e);
       startSilence();
       onSpeakingChange?.(false);
       setStatus("ready");
     }
-  }, [startSilence, stopSilence]);
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (simliRef.current) return;
+    let cancelled = false;
+
+    async function init() {
       try {
         setStatus("connecting");
         const result = await generateSimliSessionToken({
@@ -84,57 +89,54 @@ export function useSimliAvatar({ onSpeakingChange } = {}) {
           }
         });
 
+        if (cancelled) return;
+
         const client = new SimliClient(
           result.session_token,
           videoRef.current,
           audioRef.current,
           null,
-          "info",
+          "error",
           "livekit"
         );
 
-        client.on("start", async () => {
-          console.log("Simli connected!");
-          simliRef.current = client;
-          setStatus("ready");
-          startSilence();
-          await new Promise(r => setTimeout(r, 2000));
-          await speak("Здравствуйте! Я Анна, ваш психолог-консультант. Расскажите, что вас беспокоит?");
-        });
+        client.on("speaking", () => { setStatus("speaking"); onSpeakingChange?.(true); });
+        client.on("silent", () => { setStatus("ready"); onSpeakingChange?.(false); });
+        client.on("startup_error", (e) => { console.error("startup_error:", e); setStatus("error"); });
 
-        client.on("speaking", () => {
-          setStatus("speaking");
-          onSpeakingChange?.(true);
-        });
-
-        client.on("silent", () => {
-          setStatus("ready");
-          onSpeakingChange?.(false);
-        });
-
-        client.on("error", (e) => {
-          console.error("Simli error:", e);
-          setStatus("error");
-        });
-
-        client.on("startup_error", (e) => {
-          console.error("Simli startup error:", e);
-          setStatus("error");
-        });
+        clientRef.current = client;
 
         await client.start();
 
-      } catch (e) {
-        console.error("Simli init error:", e);
+        if (cancelled) return;
+
+        console.log("client.start() done, starting silence immediately");
+        startSilence();
+        setStatus("ready");
+
+        await new Promise(r => setTimeout(r, 3000));
+
+        if (!cancelled) {
+          console.log("Sending greeting...");
+          await speak("Здравствуйте! Я Анна, ваш психолог-консультант. Расскажите, что вас беспокоит?");
+        }
+
+      } catch(e) {
+        console.error("init error:", e);
         setStatus("error");
       }
-    }, 500);
+    }
+
+    const timer = setTimeout(init, 500);
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
       stopSilence();
-      simliRef.current?.stop();
-      simliRef.current = null;
+      if (clientRef.current) {
+        clientRef.current.stop();
+        clientRef.current = null;
+      }
     };
   }, []);
 
